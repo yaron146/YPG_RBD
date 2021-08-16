@@ -25,11 +25,12 @@
 #include<chrono>
 #include <unistd.h>	
 #include<opencv2/core/core.hpp>
-
+#include "ctello.h"
 #include<System.h>
 #include <Converter.h>	
+#include <optional>
 using namespace std;
-
+const char* const TELLO_STREAM_URL{"udp://0.0.0.0:11111"};
 void LoadImages(const string &strFile, vector<string> &vstrImageFilenames,
                 vector<double> &vTimestamps);
 
@@ -58,20 +59,27 @@ int main(int argc, char **argv)
     
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
     ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);
-    
-    //--- INITIALIZE VIDEOCAPTURE
-    cv::VideoCapture cap;
-    // open the default camera using default API
-    cap.open(0);
-    // check if we succeeded
+    ctello::Tello tello;
+    if (!tello.Bind())
+    {
+        return 0;
+    }
+    tello.SendCommand("streamon");
+    while (!(tello.ReceiveResponse()));
+    cv::VideoCapture cap{{"udp://0.0.0.0:11111?overrun_nofatal=1&fifo_size=10000000"},cv::CAP_ANY};
     if (!cap.isOpened()) {
         cerr << "ERROR! Unable to open camera\n";
         return -1;
     }
+    tello.SendCommand("takeoff");
+    while (!(tello.ReceiveResponse()));
+    //--- INITIALIZE VIDEOCAPTURE
+    // open the default camera using default AP
+    // check if we succeeded
     cout << endl << "-------" << endl;
     cout << "Start processing sequence ..." << endl;
     int timeStamps=0;
-    for (;timeStamps<1000;timeStamps++)
+    for (;timeStamps<100000;timeStamps++)
     {
         cv::Mat im;
         // wait for a new frame from camera and store it into 'frame'
@@ -90,7 +98,8 @@ int main(int argc, char **argv)
     SLAM.Shutdown();
     // the camera will be deinitialized automatically in VideoCapture destructor
     SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
-    
+    tello.SendCommand("land");
+    while (!(tello.ReceiveResponse()));
     return 0;
 }
     
