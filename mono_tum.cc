@@ -17,8 +17,8 @@
 * You should have received a copy of the GNU General Public License
 * along with ORB-SLAM2. If not, see <http://www.gnu.org/licenses/>.
 */
-
-
+#include <math.h>
+#include <filesystem>
 #include<iostream>
 #include<algorithm>
 #include<fstream>
@@ -29,11 +29,94 @@
 #include<System.h>
 #include <Converter.h>	
 #include <optional>
+#include <thread>
+#include <string.h>
+#define PI 3.14159265
+using std::filesystem::exists;
 using namespace std;
+using ctello::Tello;
 const char* const TELLO_STREAM_URL{"udp://0.0.0.0:11111"};
 void LoadImages(const string &strFile, vector<string> &vstrImageFilenames,
                 vector<double> &vTimestamps);
 
+
+enum class CSVState {//from csv to vector
+    UnquotedField,
+    QuotedField,
+    QuotedQuote
+};
+
+vector<std::string> readCSVRow(const std::string& row) {
+    CSVState state = CSVState::UnquotedField;
+    vector<std::string> fields{ "" };
+    size_t i = 0; // index of the current field
+    for (char c : row) {
+        switch (state) {
+        case CSVState::UnquotedField:
+            switch (c) {
+            case ',': // end of field
+                fields.push_back(""); i++;
+                break;
+            case '"': state = CSVState::QuotedField;
+                break;
+            default:  fields[i].push_back(c);
+                break;
+            }
+            break;
+        case CSVState::QuotedField:
+            switch (c) {
+            case '"': state = CSVState::QuotedQuote;
+                break;
+            default:  fields[i].push_back(c);
+                break;
+            }
+            break;
+        case CSVState::QuotedQuote:
+            switch (c) {
+            case ',': // , after closing quote
+                fields.push_back(""); i++;
+                state = CSVState::UnquotedField;
+                break;
+            case '"': // "" -> "
+                fields[i].push_back('"');
+                state = CSVState::QuotedField;
+                break;
+            default:  // end of quote
+                state = CSVState::UnquotedField;
+                break;
+            }
+            break;
+        }
+    }
+    return fields;
+}
+
+/// Read CSV file, Excel dialect. Accept "quoted fields ""with quotes"""
+vector<vector<double>> readCSV(std::istream& in) {
+    vector<vector<std::string>> table;
+    std::string row;
+    while (!in.eof()) {
+        std::getline(in, row);
+        if (in.bad() || in.fail()) {
+            break;
+        }
+        auto fields = readCSVRow(row);
+        table.push_back(fields);
+    }
+    // convert from an vector of strings to vector of doubles
+    vector<vector<double>> points;
+    for (auto& row : table)
+    {
+        double x = std::stod(row[0]);
+        double y = std::stod(row[1]);
+        double z = std::stod(row[2]);
+        vector<double> values = { x, y, z };
+        points.push_back(values);
+        //double dist = sqrt(x * x + y * y + z * z);
+        //std::cout << x << " " << y << " " << z << " " << dist << std::endl;
+    }
+    return points;
+}
 void saveMap(ORB_SLAM2::System &SLAM){
     std::vector<ORB_SLAM2::MapPoint*> mapPoints = SLAM.GetMap()->GetAllMapPoints();
     std::ofstream pointData;
@@ -48,6 +131,16 @@ void saveMap(ORB_SLAM2::System &SLAM){
     }
     pointData.close();
 }
+//
+cv::Mat im;// global variables
+bool ret=false;//camera started working boolean
+bool finish=false;
+bool orbslamr = false;//orbslamrunning boolean
+int timeStamps=0;
+double t;
+bool save=false;
+void scan(char **argv);//function for orbslam to process the picture
+void picture();//function to take the picture
 
 int main(int argc, char **argv)
 {
@@ -56,79 +149,138 @@ int main(int argc, char **argv)
         cerr << endl << "Usage: ./mono_tum path_to_vocabulary path_to_settings" << endl;
         return 1;
     }
-    
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
-    ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);
-    ctello::Tello tello;
+        //credit to the daniel's - there was cap.open function which didn't need to be there
+    Tello tello;
     if (!tello.Bind())
     {
         return 0;
     }
     tello.SendCommand("streamon");
     while (!(tello.ReceiveResponse()));
-    cv::VideoCapture cap{{"udp://0.0.0.0:11111?overrun_nofatal=1&fifo_size=10000000"},cv::CAP_ANY};
-    if (!cap.isOpened()) {
-        cerr << "ERROR! Unable to open camera\n";
-        return -1;
+	sleep(2);
+    std::thread picturethread(picture);//multithreading
+    while(!ret)//wiating for the camera to start
+    {
+	usleep(2000);
+    }
+    std::thread scanthread(scan,argv);//orbslam thread
+    while(!orbslamr)
+    {
+	usleep(2000);
     }
     tello.SendCommand("takeoff");
     while (!(tello.ReceiveResponse()));
-    //--- INITIALIZE VIDEOCAPTURE
-    // open the default camera using default AP
-    // check if we succeeded
+    	sleep(1);
+    tello.SendCommand("up 25");
+    while (!(tello.ReceiveResponse()));
+    	sleep(1);
+
+	
     cout << endl << "-------" << endl;
     cout << "Start processing sequence ..." << endl;
-    int timeStamps=0;
-    for (;timeStamps<100000;timeStamps++)
+    while(im.empty())//waiting for the images to start loading
     {
-        cv::Mat im;
-        // wait for a new frame from camera and store it into 'frame'
-        cap.read(im);
-        // check if we succeeded
-        if (im.empty()) {
-            cerr << "ERROR! blank frame grabbed\n";
-            break;
-        }
-        // show live and wait for a key with timeout long enough to show images
-        // Pass the image to the SLAM system
-        SLAM.TrackMonocular(im,cap.get(cv::CAP_PROP_POS_MSEC)/1000.0);
+        sleep(2);
     }
-    saveMap(SLAM);
-    // Stop all threads
-    SLAM.Shutdown();
-    // the camera will be deinitialized automatically in VideoCapture destructor
-    SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
+    for (;timeStamps<25;timeStamps++)
+    {
+       tello.SendCommand("cw 15");    
+    	while (!(tello.ReceiveResponse()));
+    	sleep(1);
+    	tello.SendCommand("back 20");
+    	while (!(tello.ReceiveResponse()));
+    	sleep(1);
+    	tello.SendCommand("forward 20");
+    	while (!(tello.ReceiveResponse()));
+    	sleep(1);
+    }
+    save=true;
+    while(!exists("/tmp/Result.csv"))//waiting for the algorithim to finish working
+    {
+    	sleep(1);
+    }
+    std::ifstream f("/tmp/Result.csv", std::ifstream::binary);
+    vector<double> dest=(readCSV(f))[0];
+    cout << "finished karen csv\n";
+    double x=dest[0];
+    double z=dest[2];
+    double ang=atan2(z,x)*180/PI;
+    cout << "atan ang in deg: " << ang << "\n";
+    cout << "x<0 new ang: " << ang <<"\n";
+    ang-=90;
+    cout << "-90 new ang: " << ang <<"\n";
+    string go="";
+    if(ang<0)
+    {
+    	ang=-1* ang;
+    	go+="cw " + to_string(ang);
+    }
+    else
+    {
+    	
+    	go+="ccw " + to_string(ang);
+    }
+    cout << "got string " << go << "\n";
+    tello.SendCommand(go);
+    while (!(tello.ReceiveResponse()));
+    sleep(1);
+    tello.SendCommand("forward 500");
+    while (!(tello.ReceiveResponse()));
+    sleep(1);
+    tello.SendCommand("forward 500");
+    while (!(tello.ReceiveResponse()));
+    sleep(1);
+    cout << " send commnad\n";
     tello.SendCommand("land");
     while (!(tello.ReceiveResponse()));
+    	sleep(1);
+    cout << "land\n";
+    finish=true;
+    scanthread.join();
+    picturethread.join();
     return 0;
 }
     
-
-void LoadImages(const string &strFile, vector<string> &vstrImageFilenames, vector<double> &vTimestamps)
+void scan(char** argv)//function for orbslam to process the picture
 {
-    ifstream f;
-    f.open(strFile.c_str());
-
-    // skip first three lines
-    string s0;
-    getline(f,s0);
-    getline(f,s0);
-    getline(f,s0);
-
-    while(!f.eof())
-    {
-        string s;
-        getline(f,s);
-        if(!s.empty())
-        {
-            stringstream ss;
-            ss << s;
-            double t;
-            string sRGB;
-            ss >> t;
-            vTimestamps.push_back(t);
-            ss >> sRGB;
-            vstrImageFilenames.push_back(sRGB);
-        }
-    }
+	ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);
+	orbslamr=true;
+	while(im.empty())
+	{
+	    sleep(2);
+	}
+	while(!finish)
+	{
+		if (im.empty()) {
+		    cerr << "ERROR! blank frame grabbed\n";
+		    break;
+		}
+		// show live and wait for a key with timeout long enough to show images
+		// Pass the image to the SLAM system
+		SLAM.TrackMonocular(im,t);
+		if(save)
+		{
+			saveMap(SLAM);	
+			save=false;
+		}
+	}
+	// Stop all threads
+	SLAM.Shutdown();
+	// the camera will be deinitialized automatically in VideoCapture destructor
+	SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
+	
 }
+void picture()//function to take the picture
+{
+	cv::VideoCapture cap{TELLO_STREAM_URL,cv::CAP_FFMPEG};
+	ret=true;//camera started working
+	while(!finish)
+	{
+		cap>>im;//putting the image from the camera to the variable which saves the image
+		
+	}
+	finish=true;
+}
+
+
