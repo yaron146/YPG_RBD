@@ -1,15 +1,3 @@
-
-
-/**
-credits:
-yanir,tom,amit - helping setting up the ctello libary for running the drone from the pc through code
-kareen -  function to convert from csv row to a vector which includes the destenation points
-daniel,daniel - for solving a bug which stopped orbslam from running with ctello
-
-
-
-
-**/
 /**
 * This file is part of ORB-SLAM2.
 *
@@ -52,7 +40,7 @@ void LoadImages(const string &strFile, vector<string> &vstrImageFilenames,
                 vector<double> &vTimestamps);
 
 
-enum class CSVState {//from csv to vector, kareen's function
+enum class CSVState {//from csv to vector
     UnquotedField,
     QuotedField,
     QuotedQuote
@@ -145,14 +133,24 @@ void saveMap(ORB_SLAM2::System &SLAM){
 }
 //
 cv::Mat im;// global variables
+cv::Mat check;
 bool ret=false;//camera started working boolean
 bool finish=false;
 bool orbslamr = false;//orbslamrunning boolean
 int timeStamps=0;
+double mindist = 0.1;
 double t;
 bool save=false;
 void scan(char **argv);//function for orbslam to process the picture
 void picture();//function to take the picture
+double angtodest(cv::Mat newcheck,vector<double> dest);
+pair<double,double> getloc(cv::Mat newcheck);
+double distance(pair<double,double> location,vector<double> dest);
+pair<double,double> normalize(pair<double,double> v);
+double dot_product(pair<double,double> p1, pair<double,double> p2);
+double det(pair<double, double> p1, pair<double, double> p2);
+double angleofnorm(pair<double, double> p1, pair<double, double> p2);
+pair<double, double> rotateccw(pair<double, double> v,double angle);
 
 int main(int argc, char **argv)
 {
@@ -163,7 +161,7 @@ int main(int argc, char **argv)
     }
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
         //credit to the daniel's - there was cap.open function which didn't need to be there
-    Tello tello;//the drone
+    Tello tello;
     if (!tello.Bind())
     {
         return 0;
@@ -184,9 +182,6 @@ int main(int argc, char **argv)
     tello.SendCommand("takeoff");
     while (!(tello.ReceiveResponse()));
     	sleep(1);
-    tello.SendCommand("up 25");//taking off and going up a little bit to get a better picture
-    while (!(tello.ReceiveResponse()));
-    	sleep(1);
 
 	
     cout << endl << "-------" << endl;
@@ -195,7 +190,7 @@ int main(int argc, char **argv)
     {
         sleep(2);
     }
-    for (;timeStamps<25;timeStamps++)//a loop which in it the drone rotates 360 degrees and goes back and forward while doing it in order to map the room
+    for (;timeStamps<25;timeStamps++)
     {
        tello.SendCommand("cw 15");    
     	while (!(tello.ReceiveResponse()));
@@ -206,75 +201,167 @@ int main(int argc, char **argv)
     	tello.SendCommand("forward 20");
     	while (!(tello.ReceiveResponse()));
     	sleep(1);
+    	while(check.empty())
+    	{
+    		tello.SendCommand("ccw 15");    
+    		while (!(tello.ReceiveResponse()));
+    		sleep(1);
+    		tello.SendCommand("back 20");
+    		while (!(tello.ReceiveResponse()));
+    		sleep(1);
+    		tello.SendCommand("forward 20");
+    		while (!(tello.ReceiveResponse()));
+    		sleep(1);
+    		for(int i =0; i<3; i++)
+    		{
+    			tello.SendCommand("cw 5");    
+    			while (!(tello.ReceiveResponse()));
+    			sleep(1);
+    			tello.SendCommand("back 20");
+    			while (!(tello.ReceiveResponse()));
+    			sleep(1);
+    			tello.SendCommand("forward 20");
+    			while (!(tello.ReceiveResponse()));
+    			sleep(1);
+    		}
+    	}
     }
-    save=true;//a global variable enabling the saving map function
+    save=true;
     while(!exists("/tmp/Result.csv"))//waiting for the algorithim to finish working
     {
     	sleep(1);
     }
-    std::ifstream f("/tmp/Result.csv", std::ifstream::binary);//reading the results from the algortihim which runs on python - communication happens through files
-    vector<double> dest=(readCSV(f))[0];//getting the resuly into a vector
+    std::ifstream f("/tmp/Result.csv", std::ifstream::binary);
+    vector<double> des=(readCSV(f))[0];
+    vector <double> dest(2);
+    dest[0]=des[0];
+    dest[1]=des[2];
     cout << "finished karen csv\n";
-    double x=dest[0];
-    double z=dest[2];//results into points
-    double ang=atan2(z,x)*180/PI;//calculating the angle
-    cout << "atan ang in deg: " << ang << "\n";
-    cout << "x<0 new ang: " << ang <<"\n";
-    ang-=90;
-    cout << "-90 new ang: " << ang <<"\n";
-    string go="";
-    if(ang<0)//finding out if we need to go clock wise or counterclock wise
+    cout << "mindist: " << mindist << " distance: " << distance(getloc(check),dest) << "\n";
+    while(distance(getloc(check),dest)>mindist)
     {
-    	ang=-1* ang;
-    	go+="cw " + to_string(ang);
-    }
-    else
-    {
-    	
-    	go+="ccw " + to_string(ang);
-    }
-    cout << "got string " << go << "\n";
-    tello.SendCommand(go);//making the drone rotate to the exit
-    while (!(tello.ReceiveResponse()));
-    sleep(1);
-    tello.SendCommand("forward 200");//making it go forward in order to get out of the room
-    while (!(tello.ReceiveResponse()));
-    sleep(1);
-    tello.SendCommand("forward 200");
-    while (!(tello.ReceiveResponse()));
-    sleep(1);
-    cout << " send commnad\n";
-    tello.SendCommand("land");//landing the drone
-    while (!(tello.ReceiveResponse()));
+    	cout << "mindist: " << mindist << " distance: " << distance(getloc(check),dest) << "\n";
+    	if(check.empty())
+    	{
+    		tello.SendCommand("land");
+    		while (!(tello.ReceiveResponse()));
+    		sleep(1);
+    	}
+    	double ang = angtodest(check,dest);
+    	while(ang>15||ang<-15)
+    	{
+    		if(ang<0)
+	    	{
+	    		tello.SendCommand("ccw 15");    
+		    	while (!(tello.ReceiveResponse()));
+		    	sleep(1);
+	    	}
+	    	else
+	    	{
+	    		tello.SendCommand("cw 15");    
+		    	while (!(tello.ReceiveResponse()));
+		    	sleep(1);
+	    	}
+	    	tello.SendCommand("back 20");
+	    	while (!(tello.ReceiveResponse()));
+	    	sleep(1);
+	    	tello.SendCommand("forward 20");
+	    	while (!(tello.ReceiveResponse()));
+	    	sleep(1);
+	    	while(check.empty())
+	    	{
+	    		if(ang<0)
+	    		{
+		    		tello.SendCommand("cw 15");    
+		    		while (!(tello.ReceiveResponse()));
+		    		sleep(1);
+		    		for(int i =0; i<3; i++)
+		    		{
+		    			tello.SendCommand("ccw 5");    
+		    			while (!(tello.ReceiveResponse()));
+		    			sleep(1);
+		    			tello.SendCommand("back 20");
+		    			while (!(tello.ReceiveResponse()));
+		    			sleep(1);
+		    			tello.SendCommand("forward 20");
+		    			while (!(tello.ReceiveResponse()));
+		    			sleep(1);
+		    		}
+		    	}
+		    	else
+		    	{
+		    		tello.SendCommand("ccw 15");    
+		    		while (!(tello.ReceiveResponse()));
+		    		sleep(1);
+		    		for(int i =0; i<3; i++)
+		    		{
+		    			tello.SendCommand("cw 5");    
+		    			while (!(tello.ReceiveResponse()));
+		    			sleep(1);
+		    			tello.SendCommand("back 20");
+		    			while (!(tello.ReceiveResponse()));
+		    			sleep(1);
+		    			tello.SendCommand("forward 20");
+		    			while (!(tello.ReceiveResponse()));
+		    			sleep(1);
+		    		}
+		    	}
+	    	}
+	    	ang=angtodest(check,dest);
+    	}
+    	cout << "angle is : " << ang << "\n";
+    	string go="";
+    	if(ang<0)
+    	{
+    		ang=-1* ang;
+    		go+="ccw " + to_string(ang);
+    	}
+    	else
+    	{
+    		go+="cw " + to_string(ang);
+    	}
+    	tello.SendCommand(go);
+    	while (!(tello.ReceiveResponse()));
     	sleep(1);
+    	tello.SendCommand("forward 50");
+    	while (!(tello.ReceiveResponse()));
+    	sleep(1);
+    }
+    cout << "finished getting out of the door \n";
+    tello.SendCommand("forward 20");
+    	while (!(tello.ReceiveResponse()));
+    	sleep(1);
+    tello.SendCommand("land");
+    while (!(tello.ReceiveResponse()));
+    sleep(1);
     cout << "land\n";
-    finish=true;//global variable which states that the run is finished
+    finish=true;
     scanthread.join();
-    picturethread.join();//joining the threads
+    picturethread.join();
     return 0;
 }
     
 void scan(char** argv)//function for orbslam to process the picture
 {
-	ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);//setting up the slam
-	orbslamr=true;//global variable which states that the slam mode is ready
-	while(im.empty())//waiting until we get a picture from the drone
+	ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);
+	orbslamr=true;
+	while(im.empty())
 	{
 	    sleep(2);
 	}
-	while(!finish)//running a loop and getting pictures and analyzing it using the orbslam
+	while(!finish)
 	{
-		if (im.empty()) {//checking if the image is empty in case of an error
+		if (im.empty()) {
 		    cerr << "ERROR! blank frame grabbed\n";
 		    break;
 		}
 		// show live and wait for a key with timeout long enough to show images
 		// Pass the image to the SLAM system
-		SLAM.TrackMonocular(im,t);
-		if(save)//checking if its time to save the map
+		check = SLAM.TrackMonocular(im,t);
+		if(save)
 		{
 			saveMap(SLAM);	
-			save=false;//saving the map only once
+			save=false;
 		}
 	}
 	// Stop all threads
@@ -285,7 +372,7 @@ void scan(char** argv)//function for orbslam to process the picture
 }
 void picture()//function to take the picture
 {
-	cv::VideoCapture cap{TELLO_STREAM_URL,cv::CAP_FFMPEG}//opening the camera of the drone;
+	cv::VideoCapture cap{TELLO_STREAM_URL,cv::CAP_FFMPEG};
 	ret=true;//camera started working
 	while(!finish)
 	{
@@ -294,5 +381,86 @@ void picture()//function to take the picture
 	}
 	finish=true;
 }
+double angtodest(cv::Mat newcheck,vector<double> dest)
+{
+	cout << "\n\n\n***angtodest function :\nnewcheck:\n" << newcheck << "\n";
+	cv::Mat R = newcheck(cv::Rect(0,0,3,3)).clone();
+	cout << " R:\n" << R << "\n";
+	cv::Mat T = newcheck(cv::Rect(3,0,1,3)).clone();
+	cout << "T:\n" << T << "\n";
+	cv::Mat pos = -(R.t())*(T);
+	cout << "pos:\n" << pos << "\n";
+	cv::Mat getZ(3,1,R.type(),cv::Scalar(0));
+	getZ.at<float>(0,2)=1.0;
+	cout << "getzmat:\n" << getZ << "\n";
+	cv::Mat ang = (R.t())*(getZ);
+	cout << "angmat:\n" << ang << "\n";
+	pair<double,double> newpos((double)pos.at<float>(0,0),(double)pos.at<float>(0,2));
+	cout << "newpos pair: " << newpos.first << " , " << newpos.second << "\n";
+	pair<double,double> newang((double)ang.at<float>(0,0),(double)ang.at<float>(0,2));
+	cout << "newang pair: " << newang.first << " , " << newang.second << "\n";
+	pair<double,double> destdir(dest[0]-newpos.first,dest[1]-newpos.second);
+	cout << "destdir pair: " << destdir.first << " , " << destdir.second << "\n";
+	pair<double,double> ndestdir = normalize(destdir);
+	cout << "ndestdir pait: " << ndestdir.first << " , " << ndestdir.second << "\n";
+	pair<double,double> ncurdir = normalize(newang);
+	cout << "ncurdir pair: " << ncurdir.first << " , " << ncurdir.second << "\n";
+	double angle = angleofnorm(ndestdir,ncurdir);
+	cout << "angle in function : " << angle << "\n";
+	if(angleofnorm(ndestdir,normalize(rotateccw(ncurdir,angle)))<angleofnorm(ndestdir,normalize(rotateccw(ncurdir,-angle))))
+		return -angle;
+	return angle;
+	
+}
+pair<double,double> getloc(cv::Mat newcheck)
+{
+	cout << "\n\n\n***getloc function:\n";
+	cv::Mat R = newcheck(cv::Rect(0,0,3,3)).clone();
+	cout << " R:\n" << R << "\n";
+	cv::Mat T = newcheck(cv::Rect(3,0,1,3)).clone();
+	cout << "T:\n" << T << "\n";
+	cv::Mat pos = -(R.t())*(T);
+	cout << "pos:\n" << pos << "\n";
+	pair<double,double> newpos((double)pos.at<float>(0,0),(double)pos.at<float>(0,2));
+	return newpos;
+}
 
+double distance(pair<double,double> location,vector<double> dest)
+{
+	return sqrt((dest[0]-location.first)*(dest[0]-location.first)+(dest[1]-location.second)*(dest[1]-location.second));
+}
+
+pair<double,double> normalize(pair<double,double> v)
+{
+	double norm = sqrt(v.first*v.first+v.second*v.second);
+	pair<double,double> result(v.first/norm,v.second/norm);
+	return result;
+}
+double dot_product(pair<double,double> p1, pair<double,double> p2){
+
+    return p1.first*p2.first + p1.second*p2.second;
+}
+
+double det(pair<double, double> p1, pair<double, double> p2){
+
+    return p1.first*p2.second - p1.second*p2.first;
+}
+
+double angleofnorm(pair<double, double> p1, pair<double, double> p2)
+{
+    double thing = dot_product(p1, p2);
+
+    //cout << thing << "\t point: " << p1.first << "," <<p1.second << " and " << p2.first << "," <<p2.second;
+
+
+    if(thing >= 1) return 0;
+    if(thing <= -1) return 180;
+
+    else return acos(thing) * 180 / M_PI;
+}
+pair<double, double> rotateccw(pair<double, double> v,double angle)
+{
+	pair<double,double> newv(v.first*cos(angle*PI/180)-v.second*sin(angle*PI/180),v.first*sin(angle*PI/180)+v.second*cos(angle*PI/180));
+	return newv;
+}
 
