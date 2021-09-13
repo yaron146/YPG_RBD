@@ -1,3 +1,15 @@
+
+
+/**
+credits:
+yanir,tom,amit - helping setting up the ctello libary for running the drone from the pc through code
+kareen -  function to convert from csv row to a vector which includes the destenation points
+daniel,daniel - for solving a bug which stopped orbslam from running with ctello
+
+
+
+
+**/
 /**
 * This file is part of ORB-SLAM2.
 *
@@ -40,7 +52,7 @@ void LoadImages(const string &strFile, vector<string> &vstrImageFilenames,
                 vector<double> &vTimestamps);
 
 
-enum class CSVState {//from csv to vector
+enum class CSVState {//from csv to vector, kareen's function
     UnquotedField,
     QuotedField,
     QuotedQuote
@@ -151,7 +163,7 @@ int main(int argc, char **argv)
     }
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
         //credit to the daniel's - there was cap.open function which didn't need to be there
-    Tello tello;
+    Tello tello;//the drone
     if (!tello.Bind())
     {
         return 0;
@@ -172,7 +184,7 @@ int main(int argc, char **argv)
     tello.SendCommand("takeoff");
     while (!(tello.ReceiveResponse()));
     	sleep(1);
-    tello.SendCommand("up 25");
+    tello.SendCommand("up 25");//taking off and going up a little bit to get a better picture
     while (!(tello.ReceiveResponse()));
     	sleep(1);
 
@@ -183,7 +195,7 @@ int main(int argc, char **argv)
     {
         sleep(2);
     }
-    for (;timeStamps<25;timeStamps++)
+    for (;timeStamps<25;timeStamps++)//a loop which in it the drone rotates 360 degrees and goes back and forward while doing it in order to map the room
     {
        tello.SendCommand("cw 15");    
     	while (!(tello.ReceiveResponse()));
@@ -195,23 +207,23 @@ int main(int argc, char **argv)
     	while (!(tello.ReceiveResponse()));
     	sleep(1);
     }
-    save=true;
+    save=true;//a global variable enabling the saving map function
     while(!exists("/tmp/Result.csv"))//waiting for the algorithim to finish working
     {
     	sleep(1);
     }
-    std::ifstream f("/tmp/Result.csv", std::ifstream::binary);
-    vector<double> dest=(readCSV(f))[0];
+    std::ifstream f("/tmp/Result.csv", std::ifstream::binary);//reading the results from the algortihim which runs on python - communication happens through files
+    vector<double> dest=(readCSV(f))[0];//getting the resuly into a vector
     cout << "finished karen csv\n";
     double x=dest[0];
-    double z=dest[2];
-    double ang=atan2(z,x)*180/PI;
+    double z=dest[2];//results into points
+    double ang=atan2(z,x)*180/PI;//calculating the angle
     cout << "atan ang in deg: " << ang << "\n";
     cout << "x<0 new ang: " << ang <<"\n";
     ang-=90;
     cout << "-90 new ang: " << ang <<"\n";
     string go="";
-    if(ang<0)
+    if(ang<0)//finding out if we need to go clock wise or counterclock wise
     {
     	ang=-1* ang;
     	go+="cw " + to_string(ang);
@@ -222,47 +234,47 @@ int main(int argc, char **argv)
     	go+="ccw " + to_string(ang);
     }
     cout << "got string " << go << "\n";
-    tello.SendCommand(go);
+    tello.SendCommand(go);//making the drone rotate to the exit
     while (!(tello.ReceiveResponse()));
     sleep(1);
-    tello.SendCommand("forward 500");
+    tello.SendCommand("forward 200");//making it go forward in order to get out of the room
     while (!(tello.ReceiveResponse()));
     sleep(1);
-    tello.SendCommand("forward 500");
+    tello.SendCommand("forward 200");
     while (!(tello.ReceiveResponse()));
     sleep(1);
     cout << " send commnad\n";
-    tello.SendCommand("land");
+    tello.SendCommand("land");//landing the drone
     while (!(tello.ReceiveResponse()));
     	sleep(1);
     cout << "land\n";
-    finish=true;
+    finish=true;//global variable which states that the run is finished
     scanthread.join();
-    picturethread.join();
+    picturethread.join();//joining the threads
     return 0;
 }
     
 void scan(char** argv)//function for orbslam to process the picture
 {
-	ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);
-	orbslamr=true;
-	while(im.empty())
+	ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);//setting up the slam
+	orbslamr=true;//global variable which states that the slam mode is ready
+	while(im.empty())//waiting until we get a picture from the drone
 	{
 	    sleep(2);
 	}
-	while(!finish)
+	while(!finish)//running a loop and getting pictures and analyzing it using the orbslam
 	{
-		if (im.empty()) {
+		if (im.empty()) {//checking if the image is empty in case of an error
 		    cerr << "ERROR! blank frame grabbed\n";
 		    break;
 		}
 		// show live and wait for a key with timeout long enough to show images
 		// Pass the image to the SLAM system
 		SLAM.TrackMonocular(im,t);
-		if(save)
+		if(save)//checking if its time to save the map
 		{
 			saveMap(SLAM);	
-			save=false;
+			save=false;//saving the map only once
 		}
 	}
 	// Stop all threads
@@ -273,7 +285,7 @@ void scan(char** argv)//function for orbslam to process the picture
 }
 void picture()//function to take the picture
 {
-	cv::VideoCapture cap{TELLO_STREAM_URL,cv::CAP_FFMPEG};
+	cv::VideoCapture cap{TELLO_STREAM_URL,cv::CAP_FFMPEG}//opening the camera of the drone;
 	ret=true;//camera started working
 	while(!finish)
 	{
