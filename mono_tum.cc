@@ -58,6 +58,16 @@ enum class CSVState {//from csv to vector, kareen's function
     QuotedQuote
 };
 
+cv::Mat im;// global variables
+bool ret=false;//camera started working boolean
+bool finish=false;
+bool orbslamr = false;//orbslamrunning boolean
+int timeStamps=0;
+double t;
+bool save=false;
+void scan(char **argv);//function for orbslam to process the picture
+void picture();//function to take the picture
+
 vector<std::string> readCSVRow(const std::string& row) {
     CSVState state = CSVState::UnquotedField;
     vector<std::string> fields{ "" };
@@ -144,15 +154,7 @@ void saveMap(ORB_SLAM2::System &SLAM){
     pointData.close();
 }
 //
-cv::Mat im;// global variables
-bool ret=false;//camera started working boolean
-bool finish=false;
-bool orbslamr = false;//orbslamrunning boolean
-int timeStamps=0;
-double t;
-bool save=false;
-void scan(char **argv);//function for orbslam to process the picture
-void picture();//function to take the picture
+
 
 int main(int argc, char **argv)
 {
@@ -214,14 +216,10 @@ int main(int argc, char **argv)
     }
     std::ifstream f("/tmp/Result.csv", std::ifstream::binary);//reading the results from the algortihim which runs on python - communication happens through files
     vector<double> dest=(readCSV(f))[0];//getting the resuly into a vector
-    cout << "finished karen csv\n";
     double x=dest[0];
     double z=dest[2];//results into points
     double ang=atan2(z,x)*180/PI;//calculating the angle
-    cout << "atan ang in deg: " << ang << "\n";
-    cout << "x<0 new ang: " << ang <<"\n";
     ang-=90;
-    cout << "-90 new ang: " << ang <<"\n";
     string go="";
     if(ang<0)//finding out if we need to go clock wise or counterclock wise
     {
@@ -233,7 +231,6 @@ int main(int argc, char **argv)
     	
     	go+="ccw " + to_string(ang);
     }
-    cout << "got string " << go << "\n";
     tello.SendCommand(go);//making the drone rotate to the exit
     while (!(tello.ReceiveResponse()));
     sleep(1);
@@ -247,7 +244,6 @@ int main(int argc, char **argv)
     tello.SendCommand("land");//landing the drone
     while (!(tello.ReceiveResponse()));
     	sleep(1);
-    cout << "land\n";
     finish=true;//global variable which states that the run is finished
     scanthread.join();
     picturethread.join();//joining the threads
