@@ -1,3 +1,6 @@
+#############################
+#the point of this code is to get the points in the room by file and calculate the exit using the furthest median of angle slices and return it by file
+#############################
 import matplotlib.pyplot as plt
 import numpy as np
 import csv
