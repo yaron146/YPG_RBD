@@ -55,6 +55,27 @@ enum class CSVState {//from csv to vector - karen function
     QuotedQuote
 };
 
+cv::Mat im;// global variables
+cv::Mat check;
+bool ret=false;//camera started working boolean
+bool finish=false;
+bool orbslamr = false;//orbslamrunning boolean
+int timeStamps=0;
+double mindist = 0.1;
+double t;
+bool save=false;//a boolean whichc states to save or not to save the map
+void scan(char **argv);//function for orbslam to process the picture
+void picture();//function to take the picture
+double angtodest(cv::Mat newcheck,vector<double> dest);//a function which returns the angle which the drone need to rotate in order to look at the exit
+pair<double,double> getloc(cv::Mat newcheck);//getting the location of the drone
+double distance(pair<double,double> location,vector<double> dest);//distance function
+pair<double,double> normalize(pair<double,double> v);//normalizing the vector
+double dot_product(pair<double,double> p1, pair<double,double> p2);//dot product of vectors
+double det(pair<double, double> p1, pair<double, double> p2);//determenant of a matrix
+double angleofnorm(pair<double, double> p1, pair<double, double> p2);//the angle of the normalized vectors
+pair<double, double> rotateccw(pair<double, double> v,double angle);//rotating
+
+
 vector<std::string> readCSVRow(const std::string& row) {
     CSVState state = CSVState::UnquotedField;
     vector<std::string> fields{ "" };
@@ -141,25 +162,6 @@ void saveMap(ORB_SLAM2::System &SLAM){
     pointData.close();
 }
 //
-cv::Mat im;// global variables
-cv::Mat check;
-bool ret=false;//camera started working boolean
-bool finish=false;
-bool orbslamr = false;//orbslamrunning boolean
-int timeStamps=0;
-double mindist = 0.1;
-double t;
-bool save=false;//a boolean whichc states to save or not to save the map
-void scan(char **argv);//function for orbslam to process the picture
-void picture();//function to take the picture
-double angtodest(cv::Mat newcheck,vector<double> dest);//a function which returns the angle which the drone need to rotate in order to look at the exit
-pair<double,double> getloc(cv::Mat newcheck);//getting the location of the drone
-double distance(pair<double,double> location,vector<double> dest);//distance function
-pair<double,double> normalize(pair<double,double> v);//normalizing the vector
-double dot_product(pair<double,double> p1, pair<double,double> p2);//dot product of vectors
-double det(pair<double, double> p1, pair<double, double> p2);//determenant of a matrix
-double angleofnorm(pair<double, double> p1, pair<double, double> p2);//the angle of the normalized vectors
-pair<double, double> rotateccw(pair<double, double> v,double angle);//rotating
 
 int main(int argc, char **argv)
 {
