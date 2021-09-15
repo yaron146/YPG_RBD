@@ -68,7 +68,7 @@ bool save=false;
 void scan(char **argv);//function for orbslam to process the picture
 void picture();//function to take the picture
 
-vector<std::string> readCSVRow(const std::string& row) {
+vector<std::string> readCSVRow(const std::string& row) { // [kareen's]
     CSVState state = CSVState::UnquotedField;
     vector<std::string> fields{ "" };
     size_t i = 0; // index of the current field
@@ -113,7 +113,7 @@ vector<std::string> readCSVRow(const std::string& row) {
     return fields;
 }
 
-/// Read CSV file, Excel dialect. Accept "quoted fields ""with quotes"""
+/// Read CSV file, Excel dialect. Accept "quoted fields ""with quotes""" [kareen's]
 vector<vector<double>> readCSV(std::istream& in) {
     vector<vector<std::string>> table;
     std::string row;
@@ -139,7 +139,7 @@ vector<vector<double>> readCSV(std::istream& in) {
     }
     return points;
 }
-void saveMap(ORB_SLAM2::System &SLAM){
+void saveMap(ORB_SLAM2::System &SLAM){// from the course's moodle
     std::vector<ORB_SLAM2::MapPoint*> mapPoints = SLAM.GetMap()->GetAllMapPoints();
     std::ofstream pointData;
     pointData.open("/tmp/pointData.csv");
@@ -251,7 +251,7 @@ int main(int argc, char **argv)
 }
     
 void scan(char** argv)//function for orbslam to process the picture
-{
+{ //[ours]
 	ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);//setting up the slam
 	orbslamr=true;//global variable which states that the slam mode is ready
 	while(im.empty())//waiting until we get a picture from the drone
@@ -280,7 +280,7 @@ void scan(char** argv)//function for orbslam to process the picture
 	
 }
 void picture()//function to take the picture
-{
+{ //[ours]
 	cv::VideoCapture cap{TELLO_STREAM_URL,cv::CAP_FFMPEG}//opening the camera of the drone;
 	ret=true;//camera started working
 	while(!finish)
