@@ -59,10 +59,10 @@ enum class CSVState {//from csv to vector - karen function
 cv::Mat im;// global variables
 cv::Mat check;
 bool ret=false;//camera started working boolean
-bool finish=false;
+bool finish=false;//drone finished working and got out of the room
 bool orbslamr = false;//orbslamrunning boolean
-int timeStamps=0;
-double mindist = 0.1;
+int timeStamps=0;//integer for the loop of the drone spinning 360
+double mindist = 0.1;//the mindist from the exit
 double t;
 bool save=false;//a boolean whichc states to save or not to save the map
 void scan(char **argv);//function for orbslam to process the picture
