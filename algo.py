@@ -12,12 +12,12 @@ from sklearn.datasets import make_blobs
 from sklearn.preprocessing import StandardScaler
 import os
 import time
-def argmedian(x): #a function that gives the index of the median
+def argmedian(x): #a function that gives the index of the median [internet]
   return np.argpartition(x, len(x) // 2)[len(x) // 2]
 
-def distance(point1,point2):
+def distance(point1,point2): #[ours]
     return np.sqrt((point1[0]-point2[0])**2 + (point1[1]-point2[1])**2)
-
+#[this whole code is ours]
 x = 1 # the difference of each slice in degrees
 y = 20 # the size of each slice in degrees
 location = "/tmp/pointData.csv" # the location of the data
@@ -84,5 +84,5 @@ with open("/tmp/Result.csv", 'w') as f:
     # create the csv writer
     writer = csv.writer(f)
 
-    # write a row to the csv file
+    # write the result to the csv file
     writer.writerow(newfar)
