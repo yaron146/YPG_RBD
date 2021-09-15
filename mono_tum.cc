@@ -5,6 +5,7 @@ credits:
 yanir, tom, amit - helping setting up the ctello libary on the virtual machine
 daniel's and yahav - finding a line in code which can't be run which solved a bug
 kareen - providing a function which converts csv file to vector
+eliron and shahaf - helped a bit with the exit algorithm
 
 
 
@@ -76,7 +77,7 @@ double angleofnorm(pair<double, double> p1, pair<double, double> p2);//the angle
 pair<double, double> rotateccw(pair<double, double> v,double angle);//rotating
 
 
-vector<std::string> readCSVRow(const std::string& row) {
+vector<std::string> readCSVRow(const std::string& row) { //[kareen's]
     CSVState state = CSVState::UnquotedField;
     vector<std::string> fields{ "" };
     size_t i = 0; // index of the current field
@@ -121,7 +122,7 @@ vector<std::string> readCSVRow(const std::string& row) {
     return fields;
 }
 
-/// Read CSV file, Excel dialect. Accept "quoted fields ""with quotes"""
+/// Read CSV file, Excel dialect. Accept "quoted fields ""with quotes""" [kareen's]
 vector<vector<double>> readCSV(std::istream& in) {
     vector<vector<std::string>> table;
     std::string row;
@@ -147,7 +148,7 @@ vector<vector<double>> readCSV(std::istream& in) {
     }
     return points;
 }
-void saveMap(ORB_SLAM2::System &SLAM){
+void saveMap(ORB_SLAM2::System &SLAM){ // [the course's moodle]
     std::vector<ORB_SLAM2::MapPoint*> mapPoints = SLAM.GetMap()->GetAllMapPoints();
     std::ofstream pointData;
     pointData.open("/tmp/pointData.csv");
@@ -164,7 +165,7 @@ void saveMap(ORB_SLAM2::System &SLAM){
 //
 
 int main(int argc, char **argv)
-{
+{ // [ours]
     if(argc != 3)//a check if all things needed got sent
     {
         cerr << endl << "Usage: ./mono_tum path_to_vocabulary path_to_settings" << endl;
@@ -347,7 +348,7 @@ int main(int argc, char **argv)
 }
     
 void scan(char** argv)//function for orbslam to process the picture
-{
+{ //[ours]
 	ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);//setting up the orbslam
 	orbslamr=true;//orbslam is ready
 	while(im.empty())//checking if getting images from the drone, and waiting if needed
@@ -376,7 +377,7 @@ void scan(char** argv)//function for orbslam to process the picture
 	
 }
 void picture()//function to take the picture
-{
+{ //[ours]
 	cv::VideoCapture cap{TELLO_STREAM_URL,cv::CAP_FFMPEG};//openning the drone camera
 	ret=true;//camera started working
 	while(!finish)
@@ -386,7 +387,7 @@ void picture()//function to take the picture
 	}
 	finish=true;
 }
-double angtodest(cv::Mat newcheck,vector<double> dest)//function which retunrs the angle that the drone need to rotate in order to face the exit
+double angtodest(cv::Mat newcheck,vector<double> dest)//function which retunrs the angle that the drone need to rotate in order to face the exit [ours]
 {
 	cv::Mat R = newcheck(cv::Rect(0,0,3,3)).clone();
 	cv::Mat T = newcheck(cv::Rect(3,0,1,3)).clone();//getting to vectors from the position of the drone
@@ -405,7 +406,7 @@ double angtodest(cv::Mat newcheck,vector<double> dest)//function which retunrs t
 	return angle;
 	
 }
-pair<double,double> getloc(cv::Mat newcheck)//getting location of the drone
+pair<double,double> getloc(cv::Mat newcheck)//getting location of the drone [ours]
 {
 	cv::Mat R = newcheck(cv::Rect(0,0,3,3)).clone();
 	cv::Mat T = newcheck(cv::Rect(3,0,1,3)).clone();//vectors of the position
@@ -414,28 +415,28 @@ pair<double,double> getloc(cv::Mat newcheck)//getting location of the drone
 	return newpos;
 }
 
-double distance(pair<double,double> location,vector<double> dest)//distance function
+double distance(pair<double,double> location,vector<double> dest)//distance function [ours]
 {
 	return sqrt((dest[0]-location.first)*(dest[0]-location.first)+(dest[1]-location.second)*(dest[1]-location.second));
 }
 
-pair<double,double> normalize(pair<double,double> v)//normalizing vector
+pair<double,double> normalize(pair<double,double> v)//normalizing vector [ours]
 {
 	double norm = sqrt(v.first*v.first+v.second*v.second);
 	pair<double,double> result(v.first/norm,v.second/norm);
 	return result;
 }
-double dot_product(pair<double,double> p1, pair<double,double> p2){//dot product of vectors
+double dot_product(pair<double,double> p1, pair<double,double> p2){//dot product of vectors [ours]
 
     return p1.first*p2.first + p1.second*p2.second;
 }
 
-double det(pair<double, double> p1, pair<double, double> p2){//determinant of matrix
+double det(pair<double, double> p1, pair<double, double> p2){//determinant of matrix [ours]
 
     return p1.first*p2.second - p1.second*p2.first;
 }
 
-double angleofnorm(pair<double, double> p1, pair<double, double> p2)//a function which returns the angle from the normalized vectors
+double angleofnorm(pair<double, double> p1, pair<double, double> p2)//a function which returns the angle from the normalized vectors [ours]
 {
     double thing = dot_product(p1, p2);
 
@@ -447,7 +448,7 @@ double angleofnorm(pair<double, double> p1, pair<double, double> p2)//a function
 
     else return acos(thing) * 180 / M_PI;
 }
-pair<double, double> rotateccw(pair<double, double> v,double angle)//rotating counter clock wise
+pair<double, double> rotateccw(pair<double, double> v,double angle)//rotating counter clock wise [ours]
 {
 	pair<double,double> newv(v.first*cos(angle*PI/180)-v.second*sin(angle*PI/180),v.first*sin(angle*PI/180)+v.second*cos(angle*PI/180));
 	return newv;
