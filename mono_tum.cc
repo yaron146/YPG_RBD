@@ -60,9 +60,9 @@ enum class CSVState {//from csv to vector, kareen's function
 
 cv::Mat im;// global variables
 bool ret=false;//camera started working boolean
-bool finish=false;
+bool finish=false;//a variable which states if the drone got out of the room
 bool orbslamr = false;//orbslamrunning boolean
-int timeStamps=0;
+int timeStamps=0;//integer for the loop of scanning the room
 double t;
 bool save=false;
 void scan(char **argv);//function for orbslam to process the picture
@@ -250,7 +250,7 @@ int main(int argc, char **argv)
     return 0;
 }
     
-void scan(char** argv)//function for orbslam to process the picture
+void scan(char** argv)//function which runs on a new thread for orbslam to process the picture, recievs the arguments for setting up the ORBSLAM and proccess the picture using orbslam[ours]
 { //[ours]
 	ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);//setting up the slam
 	orbslamr=true;//global variable which states that the slam mode is ready
@@ -279,7 +279,7 @@ void scan(char** argv)//function for orbslam to process the picture
 	SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
 	
 }
-void picture()//function to take the picture
+void picture()//function which runs on a new thread and its goal is to take the picture from the drone and insert it in the global variable 'im' which is the matrix we push to the orbslam, the function doesnt recieve neither returns anything, just uses global variables
 { //[ours]
 	cv::VideoCapture cap{TELLO_STREAM_URL,cv::CAP_FFMPEG}//opening the camera of the drone;
 	ret=true;//camera started working
