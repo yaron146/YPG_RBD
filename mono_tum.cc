@@ -347,7 +347,7 @@ int main(int argc, char **argv)
     return 0;
 }
     
-void scan(char** argv)//function for orbslam to process the picture
+void scan(char** argv)//function for orbslam to process the picture, its recieves the arguments which are nessecary for setting up ORBSLAM, and it doesnt return anything.
 { //[ours]
 	ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);//setting up the orbslam
 	orbslamr=true;//orbslam is ready
@@ -376,7 +376,7 @@ void scan(char** argv)//function for orbslam to process the picture
 	SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
 	
 }
-void picture()//function to take the picture
+void picture()//function to take the picture from the drone, it doesnt receive anything but uses some of the global variables, doesnt return anything.  
 { //[ours]
 	cv::VideoCapture cap{TELLO_STREAM_URL,cv::CAP_FFMPEG};//openning the drone camera
 	ret=true;//camera started working
